@@ -70,16 +70,7 @@ async function run() {
         }
         next()
    }
-  //  const verifyModerators = async (req, res, next) => {
-  //   const email = req.decoded.email;
-  //   const query = { email: email };
-  //   const user = await userCollections.findOne(query);
-  //   const isModerator = user.role === 'oderator';
-  //   if (!isModerator) {
-  //     return res.status(403).send({ message: 'forbidden access' });
-  //   }
-  //   next();
-  // };
+ 
     app.post('/addproductse', async (req, res) => {
 
       const addProducts = req.body;
@@ -128,20 +119,39 @@ async function run() {
       const result = await userCollections.updateOne(filter, updatedDoc)
       res.send(result)
     })
-    // modaretor.patch
-    // app.patch('/alluser/moderator/:id',veryfitoken, verifyModerators,  async (req, res) => {
-    //     const id = req.params.id;
-    //     const filter = { _id: new ObjectId(id) };
-    //     const updatedDoc = {
-    //       $set: {
-    //         role: "moderator",
-    //       },
-    //     };
-    //     const result = await userCollections.updateOne(filter, updatedDoc);
-    //     res.send(result);
-    //   }
-    // );
-    
+    app.get('/deshbord/myproduct/update/:id', async(req, res)=>{
+      const result = await products.findOne({_id: new ObjectId(req.params.id)})
+      res.send(result)
+      
+    } )
+    app.put('/deshbord/myproduct/update/:id', async (req, res)=>{
+      
+      const id = req.params.id;
+    const filter = {_id : new ObjectId(id)}
+    const options = {upsert: true}
+    const updated = req.body;
+      const data ={
+        $set:{
+          productsName:updated.productsName,
+          productsImg:updated.productsImg,
+          description:updated.description, 
+          displayName:updated.displayName, 
+          ownerEmail:updated.ownerEmail,
+          photoURL:updated.photoURL, 
+          externalLinks:updated.externalLinks, 
+          email:updated.email, 
+             
+        }
+      }
+      const result= await products.updateOne(filter, data,  options)
+      res.send(result)
+      
+    })
+    app.delete('/deshbord/myproduct/delete/:id', async(req, res) =>{
+      const  result = await products.deleteOne({_id: new ObjectId(req.params.id)})
+      // console.log(result)
+      res.send(result)
+    })
     app.get("/alluser/admin/:email", veryfitoken,  async (req, res) => {
       const email = req.params.email;
 
@@ -173,22 +183,6 @@ async function run() {
       }
       res.send({ moderator });
     });
-    // moderators
-    // app.get("/alluser/moderator/:email", veryfitoken, async (req, res) => {
-    //   const email = req.params.email;
-
-    //   if (email !== req.decoded.email) {
-    //     return res.status(403).send({ message: "forbidden access" });
-    //   }
-
-    //   const query = { email: email };
-    //   const user = await userCollections.findOne(query);
-    //   let moderator = false;
-    //   if (user) {
-    //     moderator = user?.role === "moderator";
-    //   }
-    //   res.send({ moderator });
-    // });
 
     app.get('/products', async (req, res) => {
 
@@ -201,14 +195,9 @@ async function run() {
       const result = await products.find({ email: req.params.email }).toArray()
       res.send(result)
     })
-    // Connect the client to the server	(optional starting in v4.7)
-    // await client.connect();
-    // Send a ping to confirm a successful connection
-    // await client.db("admin").command({ ping: 1 });
-    // console.log("Pinged your deployment. You successfully connected to MongoDB!");
+   
   } finally {
-    // Ensures that the client will close when you finish/error
-    // await client.close();
+  
   }
 }
 run().catch(console.dir);
