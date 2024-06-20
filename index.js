@@ -4,7 +4,9 @@ const jwt = require('jsonwebtoken')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const cors = require('cors');
 
+
 require('dotenv').config()
+const stripe = require('stripe')(process.env.SPRITE_SECRET_KEY)
 const app = express()
 const port = process.env.PORT || 5000;
 app.use(cors())
@@ -26,6 +28,7 @@ async function run() {
   try {
     const products = client.db('products-controling').collection('addProducts')
     const userCollections = client.db('products-controling').collection('users')
+    const userpaymentCollecations = client.db('products-controling').collection('paymentsColetions')
 
     app.post('/jwt', async (req, res) => {
       const users = req.body;
@@ -36,7 +39,7 @@ async function run() {
       res.send({ token })
     })
    const veryfitoken = (req, res, next)=>{
-     console.log(req.headers.authorization, 'inisde veryfi')
+    //  console.log(req.headers.authorization, 'inisde veryfi')
      if(!req.headers.authorization){
       return res.status(401).send({message: 'forbiden access user'})
      }
@@ -107,7 +110,7 @@ async function run() {
       const result = await userCollections.updateOne(filter, updatedDoc)
       res.send(result)
     })
-    app.patch('/alluser/moderator/:id', veryfitoken, veryfiAdmin, async (req, res) => {
+    app.patch('/alluser/moderator/:id', veryfitoken, verifyModerators, async (req, res) => {
 
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) }
@@ -190,6 +193,47 @@ async function run() {
       res.json(products);
 
     })
+   
+    app.post("/create-payment-intent", veryfitoken, async (req, res) => {
+      const { price } = req.body;
+      const amount = parseInt(price * 100);
+      // console.log(amount, "amount inside the intent");
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
+
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
+    });
+    app.post("/user/payments/:email", async (req, res) => {
+      const payment = req.body;
+      console.log(req.params.email)
+      const email = req.params.email;
+      const updatedDocs= {$set:{
+      isMember: true,
+      }}
+      const updauser= await userCollections.updateOne({email}, updatedDocs)
+      res.send(updauser)});
+    
+    app.get('/alluser/member/:email', veryfitoken, async (req, res) => {
+      const email = req.params.email;
+
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+
+      const query = { email: email };
+      const user = await userCollections.findOne(query);
+      let member = false;
+      if (user) {
+        member = user?.isMember === true;
+      }
+      res.send({ member });
+    });
 
     app.get('/mylist/:email', async (req, res) => {
       const result = await products.find({ email: req.params.email }).toArray()
