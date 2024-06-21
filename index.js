@@ -5,6 +5,7 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const cors = require('cors');
 
 
+
 require('dotenv').config()
 const stripe = require('stripe')(process.env.SPRITE_SECRET_KEY)
 const app = express()
@@ -133,6 +134,33 @@ async function run() {
       const result = await userCollections.updateOne(filter, updatedDoc)
       res.send(result)
     })
+    app.put("/voteCount/:id", veryfitoken, async (req, res) => {
+      const id = req.params.id;
+      const userEmail = req.body.userEmail;
+      const query = { _id: new ObjectId(id) };
+
+      try {
+        const findProduct = await products.findOne(query);
+
+        if (findProduct.voters && findProduct.voters.includes(userEmail)) {
+          return;
+        }
+
+        const updatedDoc = {
+          $inc: { upVote: 1 },
+          $push: { voters: userEmail },
+        };
+
+        const result = await products.updateOne(query, {
+          $inc: { upVote: 1 },
+          $push: { voters: userEmail },
+        });
+
+        res.status(200).json(result);
+      } catch (error) {
+        console.error("Error while updating vote count:", error);
+      }
+    });
     app.get('/deshbord/myproduct/update/:id', async(req, res)=>{
       const result = await products.findOne({_id: new ObjectId(req.params.id)})
       res.send(result)
@@ -198,13 +226,20 @@ async function run() {
       res.send({ moderator });
     });
 
-    app.get('/products', async (req, res) => {
+    // app.get('/products', async (req, res) => {
 
-      const products = await products.find().sort({ timestamp: -1 }).toArray(); // Sort products by timestamp in descending order
-      res.json(products);
+    //   const products = await products.find().sort({ timestamp: -1 }).toArray(); // Sort products by timestamp in descending order
+    //   res.json(products);
 
-    })
-    
+    // })
+    app.get("/featuredProducts", async (req, res) => {
+      const result = await products.find({
+        ProductType: "Featured",
+      })
+        .sort({ timestamp: -1 })
+        .toArray();
+      res.send(result);
+    });
 
 // change pending product status to Accepted
 
@@ -272,8 +307,43 @@ app.put('/rejecteduserproduct/:id', veryfitoken, verifyModerators, async (req, r
         }
       }
     );
+    app.get("/reportdProduct",veryfitoken, verifyModerators,
+      async (req, res) => {
+        const result = await products.find({ ProductFeedback: "Reported",
+        }).toArray();
+        res.send(result);
+      }
+    );
+    app.delete("/producted/:id", veryfitoken, verifyModerators,async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await products.deleteOne(query);
+      res.send(result);
+    }
+  );
+    app.put("/reportdProduct/:id", veryfitoken, async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const userFeedback = "Reported";
+     
+      try {
+        const result = await products.updateOne(filter, {
+          $set: { ProductFeedback: userFeedback },
+        });
 
-   
+        if (result.modifiedCount > 0) {
+          res.status(200).json({ message: "Product Feedback updated successfully" });
+        } else {
+          res
+            .status(404)
+            .json({ message: "Product not found or Feedback not updated" });
+        }
+      } catch (error) {
+        console.error("Error updating product Feedback:", error);
+        res.status(500).json({ message: "Internal server error" });
+      }
+    });
+
    
     app.post("/create-payment-intent", veryfitoken, async (req, res) => {
       const { price } = req.body;
