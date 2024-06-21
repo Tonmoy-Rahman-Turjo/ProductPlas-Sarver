@@ -29,6 +29,7 @@ async function run() {
   try {
     const products = client.db('products-controling').collection('addProducts')
     const userCollections = client.db('products-controling').collection('users')
+    const  userReviews = client.db('products-controling').collection('rivew')
     const userpaymentCollecations = client.db('products-controling').collection('paymentsColetions')
 
     app.post('/jwt', async (req, res) => {
@@ -92,7 +93,10 @@ async function run() {
       res.send(result);
     });
 
-
+    app.get("/allReviews", veryfitoken, async (req, res) => {
+      const result = await userReviews.find().toArray();
+      res.send(result);
+    });
     app.post('/user', async (req, res) => {
 
       const user = req.body;
@@ -314,6 +318,11 @@ app.put('/rejecteduserproduct/:id', veryfitoken, verifyModerators, async (req, r
         res.send(result);
       }
     );
+    app.post("/addReview", veryfitoken, async (req, res) => {
+      const usersReview = req.body;
+      const result = await  userReviews.insertOne(usersReview);
+      res.send(result);
+    });
     app.delete("/producted/:id", veryfitoken, verifyModerators,async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
@@ -344,6 +353,7 @@ app.put('/rejecteduserproduct/:id', veryfitoken, verifyModerators, async (req, r
       }
     });
 
+   
    
     app.post("/create-payment-intent", veryfitoken, async (req, res) => {
       const { price } = req.body;
