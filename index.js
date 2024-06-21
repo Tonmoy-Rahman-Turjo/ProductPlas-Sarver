@@ -67,8 +67,8 @@ async function run() {
     const email = req.decoded.email;
     const query = {email: email}
     const user = await userCollections.findOne(query)
-    const isAdmin = user.role === 'admin'
-        if(!isAdmin){
+    const isModerator = user.role === 'moderator'
+        if(!isModerator){
         return  res.status(403).sen({message: 'forbiden access'})
         }
         next()
@@ -80,6 +80,17 @@ async function run() {
       const result = await products.insertOne(addProducts)
       res.send(result)
     })
+    app.get("/allproduct", async (req, res) => {
+      const result = await products.find().toArray();
+      res.send(result);
+    });
+    app.get("/allProducts/:id", veryfitoken, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await products.findOne(query);
+      res.send(result);
+    });
+
 
     app.post('/user', async (req, res) => {
 
@@ -193,6 +204,76 @@ async function run() {
       res.json(products);
 
     })
+    
+
+// change pending product status to Accepted
+
+app.put('/accepteduserproduct/:id', veryfitoken, verifyModerators, async (req, res) => {
+    const id = req.params.id;
+    const filter = { _id: new ObjectId(id) };
+    const newStatus = "Accepted";
+
+    try {
+      const result = await products.updateOne(filter, {
+        $set: { ProductStatus: newStatus },
+      });
+
+      if (result.modifiedCount > 0) {
+        res.status(200).json({ message: "Product status updated successfully" });
+      } else {
+        res.status(404).json({ message: "Product not found or status not updated" });
+      }
+    } catch (error) {
+      console.error("Error updating product status:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  }
+);
+app.put('/rejecteduserproduct/:id', veryfitoken, verifyModerators, async (req, res) => {
+    const id = req.params.id;
+    const filter = { _id: new ObjectId(id) };
+    const newStatus = "Rejected";
+
+    try {
+      const result = await products.updateOne(filter, {
+        $set: { ProductStatus: newStatus },
+      });
+
+      if (result.modifiedCount > 0) {
+        res.json({ message: "Product status updated successfully" });
+      } else {
+        res.status(404).json({ message: "Product not found or status not updated" });
+      }
+    } catch (error) {
+      console.error("Error updating product status:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  }
+);
+
+
+    app.put('/productdseType/:id', veryfitoken, verifyModerators,async (req, res) => {
+        const id = req.params.id;
+        const filter = { _id: new ObjectId(id) };
+        const newType = "Featured";
+ try {
+          const result = await products.updateOne(filter, {
+            $set: { ProductType: newType },
+          });
+
+          if (result.modifiedCount > 0) {
+            res.status(200).json({ message: "Product Type Updated successfully" });
+          } else {
+            res.status(404).json({ message: "Product not found or Type not updated" });
+          }
+        } catch (error) {
+          console.error("Error updating product Type:", error);
+          res.status(500).json({ message: "Internal server error" });
+        }
+      }
+    );
+
+   
    
     app.post("/create-payment-intent", veryfitoken, async (req, res) => {
       const { price } = req.body;
