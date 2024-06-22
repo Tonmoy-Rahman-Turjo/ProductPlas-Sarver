@@ -30,6 +30,7 @@ async function run() {
     const products = client.db('products-controling').collection('addProducts')
     const userCollections = client.db('products-controling').collection('users')
     const  userReviews = client.db('products-controling').collection('rivew')
+    const  userCopuns = client.db('products-controling').collection('cupons')
     const userpaymentCollecations = client.db('products-controling').collection('paymentsColetions')
 
     app.post('/jwt', async (req, res) => {
@@ -50,6 +51,7 @@ async function run() {
       if(error){
         return res.status(402).send({message:'forbiden token'})
       }
+      console.log(decoded,"decoded")
       req.decoded= decoded;
       next()
      })
@@ -61,21 +63,128 @@ async function run() {
     const user = await userCollections.findOne(query)
     const isAdmin = user.role === 'admin'
         if(!isAdmin){
-        return  res.status(403).sen({message: 'forbiden access'})
+        return  res.status(403).send({message: 'forbiden access'})
         }
         next()
    }
-   const verifyModerators = async (req, res, next) => {
-    const email = req.decoded.email;
-    const query = {email: email}
-    const user = await userCollections.findOne(query)
-    const isModerator = user.role === 'moderator'
-        if(!isModerator){
-        return  res.status(403).sen({message: 'forbiden access'})
-        }
-        next()
-   }
- 
+  
+  const verifyModerators = async (req, res, next) => {
+    const email = req.decoded?.email;
+    const query = { email: email };
+    const user = await userCollections.findOne(query);
+    const isModerator = user.role === "moderator";
+    if (!isModerator) {
+      return res.status(403).send({ message: "forbidden access" });
+    }
+    next();
+  };
+   app.get("/alluser/admin/:email", veryfitoken,  async (req, res) => {
+    const email = req.params.email;
+
+    if (email !== req.decoded.email) {
+      return res.status(403).send({ message: "forbidden access" });
+    }
+
+    const query = { email: email };
+    const user = await userCollections.findOne(query);
+    let admin = false;
+    if (user) {
+      admin = user?.role === "admin";
+    }
+    res.send({ admin });
+  });
+  
+  app.get("/alluser/moderator/:email", veryfitoken,  async (req, res) => {
+    const email = req.params.email;
+         console.log(email, req.decoded.email) 
+    if (email !== req.decoded.email) {
+      return res.status(403).send({ message: "forbidden access" });
+    }
+
+    const query = { email: email };
+    const user = await userCollections.findOne(query);
+    let moderator = false;
+    if (user) {
+      moderator = user?.role === "moderator";
+    }
+    res.send({ moderator });
+  });
+  app.get('/alluser', veryfitoken, veryfiAdmin,   async (req, res) => {
+    // console.log(req.headers)
+    const allUser = await userCollections.find().toArray()
+    res.send(allUser)
+  })
+  app.patch('/alluser/admin/:id', veryfitoken, veryfiAdmin, async (req, res) => {
+
+    const id = req.params.id;
+    const filter = { _id: new ObjectId(id) }
+    const updatedDoc = {
+      $set: {
+        role: "admin"
+      }
+    }
+    const result = await userCollections.updateOne(filter, updatedDoc)
+    res.send(result)
+  })
+  app.patch('/alluser/moderator/:id', veryfitoken, veryfiAdmin, async (req, res) => {
+
+    const id = req.params.id;
+    const filter = { _id: new ObjectId(id) }
+    const updatedDoc = {
+      $set: {
+        role: "moderator"
+      }
+    }
+    const result = await userCollections.updateOne(filter, updatedDoc)
+    res.send(result)
+  })
+  app.post("/coupons", veryfitoken, veryfiAdmin, async (req, res) => {
+    const newCoupone = req.body;
+    const result = await userCopuns.insertOne(newCoupone);
+    res.send(result);
+  });
+  app.get("/couponse",  async (req, res) => {
+    const result = await userCopuns.find().toArray();
+    res.send(result);
+  });
+  app.get("/allCoupons/:id", veryfitoken, veryfiAdmin, async (req, res) => {
+    const id = req.params.id;
+    const query = { _id: new ObjectId(id) };
+    const result = await userCollections.findOne(query);
+    res.send(result);
+  });
+
+  app.put('/updatecopon/:id', async (req, res)=>{
+      
+    const id = req.params.id;
+  const filter = {_id : new ObjectId(id)}
+  const options = {upsert: true}
+  const updated = req.body;
+    const data ={
+      $set:{
+        Code:updated.Code,
+        expireDates:updated.expireDates,
+        description:updated.description, 
+        disountamount:updated.disountamount, 
+        
+           
+      }
+    }
+    const result= await userCopuns.updateOne(filter, data,  options)
+    res.send(result)
+    
+  })
+app.delete('/producted/:id', async(req, res) =>{
+  const  result = await userCopuns.deleteOne({_id: new ObjectId(req.params.id)})
+  // console.log(result)
+  res.send(result)
+})
+  app.get("/chart-pai", veryfitoken, veryfiAdmin, async (req, res) => {
+    const totalproduct = await products.estimatedDocumentCount();
+    const totalreviews = await userReviews.estimatedDocumentCount();
+    const totalusers = await userCollections.estimatedDocumentCount();
+    res.send({ totalproduct, totalreviews, totalusers });
+  });
     app.post('/addproductse', async (req, res) => {
 
       const addProducts = req.body;
@@ -109,35 +218,7 @@ async function run() {
       res.send(users)
 
     })
-    app.get('/alluser', veryfitoken, veryfiAdmin,   async (req, res) => {
-      // console.log(req.headers)
-      const allUser = await userCollections.find().toArray()
-      res.send(allUser)
-    })
-    app.patch('/alluser/admin/:id', veryfitoken, veryfiAdmin, async (req, res) => {
-
-      const id = req.params.id;
-      const filter = { _id: new ObjectId(id) }
-      const updatedDoc = {
-        $set: {
-          role: "admin"
-        }
-      }
-      const result = await userCollections.updateOne(filter, updatedDoc)
-      res.send(result)
-    })
-    app.patch('/alluser/moderator/:id', veryfitoken, verifyModerators, async (req, res) => {
-
-      const id = req.params.id;
-      const filter = { _id: new ObjectId(id) }
-      const updatedDoc = {
-        $set: {
-          role: "moderator"
-        }
-      }
-      const result = await userCollections.updateOne(filter, updatedDoc)
-      res.send(result)
-    })
+    
     app.put("/voteCount/:id", veryfitoken, async (req, res) => {
       const id = req.params.id;
       const userEmail = req.body.userEmail;
@@ -165,11 +246,74 @@ async function run() {
         console.error("Error while updating vote count:", error);
       }
     });
+    
+
+
+    app.get("/api/products", async (req, res) => {
+      try {
+        const productse = await products.find().toArray();
+        res.json(productse);
+      }
+       catch (error) {
+        console.error("Error fetching products:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    });
+    
+    // Endpoint to search products based on keyword
+    app.get("/api/products/search", async (req, res) => {
+      const { keyword } = req.query;
+      if (!keyword) {
+        return res.status(400).json({ error: "Keyword parameter is required" });
+      }
+    
+      try {
+        const productse = await products.find({ tags: { $regex: keyword, $options: "i" } }).toArray();
+        res.json(productse);
+      } catch (error) {
+        console.error("Error searching products:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+      }
+    });
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+    app.get("/productpage", async (req, res) => {
+      const result = await products.find({
+        ProductStatus: "Accepted",
+      }).toArray();
+      res.send(result);
+    });
+    app.get("/trendingProducts", async (req, res) => {
+      const { upVote } = req.query;
+      const query = products.find().sort({
+        upVote: upVote || "desc",
+      });
+      const result = await query.toArray();
+      res.send(result);
+    });
     app.get('/deshbord/myproduct/update/:id', async(req, res)=>{
       const result = await products.findOne({_id: new ObjectId(req.params.id)})
       res.send(result)
       
     } )
+    app.get("/allCoupons/:id",  async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await userCopuns.findOne(query);
+      res.send(result);
+    });
     app.put('/deshbord/myproduct/update/:id', async (req, res)=>{
       
       const id = req.params.id;
@@ -198,44 +342,8 @@ async function run() {
       // console.log(result)
       res.send(result)
     })
-    app.get("/alluser/admin/:email", veryfitoken,  async (req, res) => {
-      const email = req.params.email;
-
-      if (email !== req.decoded.email) {
-        return res.status(403).send({ message: "forbidden access" });
-      }
-
-      const query = { email: email };
-      const user = await userCollections.findOne(query);
-      let admin = false;
-      if (user) {
-        admin = user?.role === "admin";
-      }
-      res.send({ admin });
-    });
     
-    app.get("/alluser/moderator/:email", veryfitoken,  async (req, res) => {
-      const email = req.params.email;
-
-      if (email !== req.decoded.email) {
-        return res.status(403).send({ message: "forbidden access" });
-      }
-
-      const query = { email: email };
-      const user = await userCollections.findOne(query);
-      let moderator = false;
-      if (user) {
-        moderator = user?.role === "moderator";
-      }
-      res.send({ moderator });
-    });
-
-    // app.get('/products', async (req, res) => {
-
-    //   const products = await products.find().sort({ timestamp: -1 }).toArray(); // Sort products by timestamp in descending order
-    //   res.json(products);
-
-    // })
+   
     app.get("/featuredProducts", async (req, res) => {
       const result = await products.find({
         ProductType: "Featured",
